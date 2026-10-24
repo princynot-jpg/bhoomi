@@ -1,0 +1,16 @@
+{
+	"servers": {
+		"postman": {
+			"type": "http",
+			"url": "https://mcp.postman.com/minimal"
+		},
+		"nlams-mongodb-test": {
+			"type": "stdio",
+			"command": "node",
+			"args": [
+				"${workspaceFolder}\\backend\\node_modules\\tsx\\dist\\cli.mjs",
+				"${workspaceFolder}\\backend\\src\\mongo-mcp-server.ts"
+			]
+		}
+	}
+}

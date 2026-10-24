@@ -1,0 +1,15 @@
+{
+	"mcpServers": {
+		"nlams-mongodb-test": {
+			"type": "local",
+			"command": "node",
+			"args": [
+				"C:\\Users\\Prince Patel\\OneDrive\\Desktop\\BHOOMI\\backend\\node_modules\\tsx\\dist\\cli.mjs",
+				"C:\\Users\\Prince Patel\\OneDrive\\Desktop\\BHOOMI\\backend\\src\\mongo-mcp-server.ts"
+			],
+			"tools": [
+				"*"
+			]
+		}
+	}
+}
