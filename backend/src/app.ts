@@ -62,8 +62,8 @@ app.use(cors({
     callback(new AppError(403, "FORBIDDEN", "Origin is not allowed by CORS."));
   },
 }));
-app.use(express.json({ limit: "10kb" }));
-app.use(express.urlencoded({ extended: false, limit: "10kb" }));
+app.use(express.json({ limit: "64kb" }));
+app.use(express.urlencoded({ extended: false, limit: "64kb" }));
 app.use(cookieParser());
 app.use(mongoSanitizeRequest);
 

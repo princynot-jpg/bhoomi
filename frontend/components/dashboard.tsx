@@ -6,6 +6,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   Bell,
+  Camera,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -31,14 +32,15 @@ import {
   Sparkles,
   Sprout,
   Users,
+  UserRound,
   X,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import ThemeToggle from "@/components/theme-toggle";
 import NepalAddressPicker from "@/components/ui/nepal-address-picker";
-import { signOut, useCurrentUser } from "@/lib/auth";
+import { restoreSession, signOut, updateProfile, useCurrentUser, type AuthUser } from "@/lib/auth";
 import {
   createWorkspaceRecord,
   listWorkspaceRecords,
@@ -353,11 +355,19 @@ function Sidebar({
             <CircleHelp size={17} strokeWidth={1.8} /><span>Help & support</span>
           </button>
           <div className="user-profile">
-            <div className="profile-avatar">{user ? user.name.slice(0, 2).toUpperCase() : "BH"}</div>
-            <div className="profile-info">
-              <strong>{user?.name ?? "Demo workspace"}</strong>
-              <span>{user?.email ?? "Sample data · Chhattisgarh"}</span>
-            </div>
+            <button
+              aria-label="Open personal profile"
+              className="profile-avatar"
+              onClick={() => onNavigate("My profile")}
+              title="Open personal profile"
+              type="button"
+            >
+              {user?.avatarDataUrl
+                ? <img alt="" src={user.avatarDataUrl} />
+                : user
+                  ? user.name.slice(0, 2).toUpperCase()
+                  : <UserRound aria-hidden="true" size={17} />}
+            </button>
             <button
               aria-label="Log out"
               className="profile-signout"
@@ -389,6 +399,127 @@ function Sidebar({
         </div>
       </aside>
     </>
+  );
+}
+
+async function prepareProfilePhoto(file: File): Promise<string> {
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    throw new Error("Choose a JPEG, PNG, or WebP image.");
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error("Choose an image smaller than 10 MB.");
+  }
+
+  const image = await createImageBitmap(file);
+  try {
+    const canvas = document.createElement("canvas");
+    const scale = Math.min(1, 256 / Math.max(image.width, image.height));
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Unable to process this image.");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    const photo = canvas.toDataURL("image/jpeg", 0.78);
+    if (photo.length > 48_000) {
+      throw new Error("This image could not be compressed enough. Choose a simpler image.");
+    }
+    return photo;
+  } finally {
+    image.close();
+  }
+}
+
+function ProfileEditor({ user, onClose }: { user: AuthUser; onClose: () => void }) {
+  const [name, setName] = useState(user.name);
+  const [position, setPosition] = useState(user.position ?? "");
+  const [state, setState] = useState(user.state ?? "");
+  const [district, setDistrict] = useState(user.district ?? "");
+  const [avatarDataUrl, setAvatarDataUrl] = useState(user.avatarDataUrl ?? null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  async function handlePhotoChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setError("");
+    try {
+      setAvatarDataUrl(await prepareProfilePhoto(file));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to use this image.");
+    }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      await updateProfile({ name, position, state, district, avatarDataUrl });
+      onClose();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to update your profile. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section aria-labelledby="profile-title" aria-modal="true" className="create-modal profile-modal" role="dialog">
+        <button aria-label="Close profile editor" className="icon-button modal-close" onClick={onClose} type="button"><X size={17} /></button>
+        <div className="modal-symbol"><UserRound size={18} /></div>
+        <div className="modal-kicker">ACCOUNT SETTINGS</div>
+        <h2 id="profile-title">Edit profile</h2>
+        <p>Update your personal details and profile photo.</p>
+        <form onSubmit={handleSubmit}>
+          <div className="profile-photo-editor">
+            <div className="profile-photo-preview">
+              {avatarDataUrl
+                ? <img alt="" src={avatarDataUrl} />
+                : name.trim()
+                  ? name.trim().slice(0, 2).toUpperCase()
+                  : <UserRound aria-hidden="true" size={23} />}
+            </div>
+            <div className="profile-photo-actions">
+              <input
+                accept="image/jpeg,image/png,image/webp"
+                aria-label="Choose profile photo"
+                className="visually-hidden"
+                onChange={handlePhotoChange}
+                ref={photoInputRef}
+                type="file"
+              />
+              <button className="button button-secondary" onClick={() => photoInputRef.current?.click()} type="button">
+                <Camera size={14} /> Add photo
+              </button>
+              {avatarDataUrl && (
+                <button className="profile-photo-remove" onClick={() => setAvatarDataUrl(null)} type="button">
+                  Remove photo
+                </button>
+              )}
+              <span>JPEG, PNG or WebP · max 10 MB</span>
+            </div>
+          </div>
+          <label className="modal-label">Full name<input autoComplete="name" maxLength={120} minLength={2} onChange={(event) => setName(event.target.value)} required value={name} /></label>
+          <label className="modal-label">Position<input autoComplete="organization-title" maxLength={160} onChange={(event) => setPosition(event.target.value)} value={position} /></label>
+          <div className="modal-form-row">
+            <label className="modal-label">State<input autoComplete="address-level1" maxLength={100} onChange={(event) => setState(event.target.value)} required value={state} /></label>
+            <label className="modal-label">District<input autoComplete="address-level2" maxLength={100} onChange={(event) => setDistrict(event.target.value)} required value={district} /></label>
+          </div>
+          {error && <p className="profile-editor-error" role="alert">{error}</p>}
+          <div className="profile-editor-actions">
+            <button className="button button-secondary" onClick={onClose} type="button">Cancel</button>
+            <button className="button button-primary" disabled={saving} type="submit">{saving ? "Saving…" : "Save profile"}</button>
+          </div>
+        </form>
+      </section>
+    </div>
   );
 }
 
@@ -764,6 +895,78 @@ function ModulePreview({
   );
 }
 
+function PersonalProfile({
+  user,
+  loading,
+  error,
+  onEdit,
+  onRetry,
+}: {
+  user: AuthUser | null;
+  loading: boolean;
+  error: string;
+  onEdit: () => void;
+  onRetry: () => void;
+}) {
+  if (loading) {
+    return <section aria-live="polite" className="surface profile-page-state">Restoring your profile…</section>;
+  }
+
+  if (error) {
+    return (
+      <section className="surface profile-page-state">
+        <p className="profile-editor-error" role="alert">{error}</p>
+        <button className="button button-secondary" onClick={onRetry} type="button">Try again</button>
+      </section>
+    );
+  }
+
+  if (!user) {
+    return (
+      <section className="surface profile-page-state">
+        <div className="profile-page-icon"><UserRound size={24} /></div>
+        <h2>Sign in to view your profile</h2>
+        <p>Your name, email, designation, and profile photo will appear here after you sign in.</p>
+        <Link className="button button-primary" href="/login">Sign in</Link>
+      </section>
+    );
+  }
+
+  const initials = user.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+
+  return (
+    <section aria-labelledby="personal-profile-title" className="surface personal-profile">
+      <div className="profile-page-heading">
+        <div>
+          <div className="section-kicker">ACCOUNT DETAILS</div>
+          <h2 id="personal-profile-title">Personal profile<span>.</span></h2>
+          <p>Your account information and contact details.</p>
+        </div>
+        <button className="button button-primary" onClick={onEdit} type="button">
+          <UserRound size={14} /> Edit profile
+        </button>
+      </div>
+      <div className="profile-summary">
+        <div className="profile-summary-avatar">
+          {user.avatarDataUrl ? <img alt="" src={user.avatarDataUrl} /> : initials || <UserRound size={26} />}
+        </div>
+        <div>
+          <h3>{user.name}</h3>
+          <span>{user.position || user.role}</span>
+        </div>
+      </div>
+      <dl className="profile-details-grid">
+        <div><dt>Full name</dt><dd>{user.name}</dd></div>
+        <div><dt>Email address</dt><dd>{user.email}</dd></div>
+        <div><dt>Designation</dt><dd>{user.position || "Not provided"}</dd></div>
+        <div><dt>Account role</dt><dd>{user.role}</dd></div>
+        <div><dt>State</dt><dd>{user.state || "Not provided"}</dd></div>
+        <div><dt>District</dt><dd>{user.district || "Not provided"}</dd></div>
+      </dl>
+    </section>
+  );
+}
+
 export default function Dashboard() {
   const [activeNav, setActiveNav] = useState("Overview");
   const [workspace, setWorkspace] = useState(workspaces[0]);
@@ -774,6 +977,29 @@ export default function Dashboard() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [workflowProposal, setWorkflowProposal] = useState<Proposal | null>(null);
+  const [profileEditorOpen, setProfileEditorOpen] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authRestoreError, setAuthRestoreError] = useState("");
+  const [authRetry, setAuthRetry] = useState(0);
+  const user = useCurrentUser();
+
+  useEffect(() => {
+    let mounted = true;
+    setAuthLoading(true);
+    setAuthRestoreError("");
+    restoreSession()
+      .catch((cause: unknown) => {
+        if (mounted) {
+          setAuthRestoreError(cause instanceof Error ? cause.message : "Unable to restore your account session.");
+        }
+      })
+      .finally(() => {
+        if (mounted) setAuthLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [authRetry]);
 
   const workspaceProposals = useMemo(
     () => workspace.district
@@ -821,7 +1047,10 @@ export default function Dashboard() {
           setSearch("");
           setStageFilter("All stages");
         }}
-        onNavigate={setActiveNav}
+        onNavigate={(label) => {
+          setActiveNav(label);
+          setMobileNavOpen(false);
+        }}
         open={mobileNavOpen}
         onClose={() => setMobileNavOpen(false)}
       />
@@ -929,7 +1158,17 @@ export default function Dashboard() {
 
           {activeNav === "Project workflow" && <ProjectWorkflowPage />}
 
-          {activeNav !== "Overview" && activeNav !== "Proposals" && activeNav !== "Project workflow" && !isResourceModule(activeNav) && (
+          {activeNav === "My profile" && (
+            <PersonalProfile
+              user={user}
+              loading={authLoading}
+              error={authRestoreError}
+              onEdit={() => setProfileEditorOpen(true)}
+              onRetry={() => setAuthRetry((attempt) => attempt + 1)}
+            />
+          )}
+
+          {activeNav !== "Overview" && activeNav !== "Proposals" && activeNav !== "Project workflow" && activeNav !== "My profile" && !isResourceModule(activeNav) && (
             <ModulePreview title={activeNav} onOverview={() => setActiveNav("Overview")} />
           )}
 
@@ -939,6 +1178,9 @@ export default function Dashboard() {
 
       {showCreate && <CreateProposalModal onClose={() => setShowCreate(false)} />}
       {workflowProposal && <ProjectWorkflowDialog proposal={workflowProposal} onClose={() => setWorkflowProposal(null)} />}
+      {profileEditorOpen && user && (
+        <ProfileEditor user={user} onClose={() => setProfileEditorOpen(false)} />
+      )}
     </div>
   );
 }

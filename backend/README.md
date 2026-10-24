@@ -73,6 +73,7 @@ VS Code after configuring MongoDB.
 | POST | `/api/v1/auth/refresh` | Rotate the HttpOnly refresh cookie |
 | POST | `/api/v1/auth/logout` | Revoke the refresh session |
 | GET | `/api/v1/users/me` | Return the authenticated user's profile |
+| PATCH | `/api/v1/users/me` | Update the authenticated user's profile and profile photo |
 | GET, POST | `/api/v1/workspace/land-parcels` | List or register land parcels |
 | PATCH | `/api/v1/workspace/land-parcels/:id/status` | Update a parcel's acquisition status |
 | GET, POST | `/api/v1/workspace/compensation` | List or register compensation awards |
@@ -84,6 +85,9 @@ The access token is returned in the response body and should be held in memory b
 the frontend. The refresh token is an HttpOnly, SameSite=Strict cookie. Signup
 does not accept a role; privileged roles need a future trusted provisioning
 workflow. Passwords require at least 8 characters and are hashed with bcrypt.
+Signed-in users can edit their name, position, state, district, and JPEG profile
+photo from the sidebar. Profile photos are resized in the browser and stored
+with the user's profile.
 Workspace routes require a bearer access token. Lists and status updates are
 restricted to the authenticated user's state and district, except that central
 and administrator roles can list across locations. Creating a record requires

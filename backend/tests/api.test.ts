@@ -35,6 +35,20 @@ describe("backend API foundation", () => {
     expect(response.body.error.code).toBe("TOKEN_INVALID");
   });
 
+  it("requires authentication to update the current-user profile", async () => {
+    const response = await request(app)
+      .patch("/api/v1/users/me")
+      .send({
+        name: "Example User",
+        position: "",
+        state: "Karnataka",
+        district: "Bengaluru",
+        avatarDataUrl: null,
+      });
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe("TOKEN_INVALID");
+  });
+
   it("rejects refresh requests without a refresh cookie", async () => {
     const response = await request(app).post("/api/v1/auth/refresh");
     expect(response.status).toBe(401);

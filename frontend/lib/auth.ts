@@ -8,6 +8,7 @@ const apiBaseUrl =
 
 let accessToken: string | null = null;
 let currentUser: AuthUser | null = null;
+let sessionRestore: Promise<AuthUser | null> | null = null;
 const authListeners = new Set<() => void>();
 
 export type AuthUser = {
@@ -18,6 +19,7 @@ export type AuthUser = {
   position?: string;
   state?: string;
   district?: string;
+  avatarDataUrl?: string | null;
 };
 
 function notifyAuthListeners() {
@@ -43,6 +45,36 @@ export function useCurrentUser() {
     () => currentUser,
     () => null,
   );
+}
+
+export function restoreSession(): Promise<AuthUser | null> {
+  if (!sessionRestore) {
+    sessionRestore = (async () => {
+      const response = await fetch(`${apiBaseUrl}/api/v1/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (response.status === 401) return null;
+
+      const result = (await response.json()) as {
+        success?: boolean;
+        data?: { accessToken: string; user: AuthUser };
+        error?: { message?: string };
+      };
+      if (!response.ok || !result.data?.accessToken || !result.data.user) {
+        throw new Error(result.error?.message ?? "Unable to restore your account session.");
+      }
+
+      setSession(result.data.user, result.data.accessToken);
+      return result.data.user;
+    })().catch((error: unknown) => {
+      sessionRestore = null;
+      throw error;
+    });
+  }
+
+  return sessionRestore;
 }
 
 async function readSessionResponse(response: Response, fallbackMessage: string) {
@@ -80,6 +112,40 @@ export type RegistrationInput = {
   district: string;
 };
 
+export type ProfileInput = {
+  name: string;
+  position: string;
+  state: string;
+  district: string;
+  avatarDataUrl: string | null;
+};
+
+export async function updateProfile(input: ProfileInput) {
+  if (!accessToken) throw new Error("Sign in to edit your profile.");
+
+  const response = await fetch(`${apiBaseUrl}/api/v1/users/me`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(input),
+  });
+  const result = (await response.json()) as {
+    success?: boolean;
+    data?: { user: AuthUser };
+    error?: { message?: string };
+  };
+
+  if (!response.ok || !result.data?.user) {
+    throw new Error(result.error?.message ?? "Unable to update your profile. Please try again.");
+  }
+
+  currentUser = result.data.user;
+  notifyAuthListeners();
+  return currentUser;
+}
+
 export async function signUp(input: RegistrationInput) {
   const response = await fetch(`${apiBaseUrl}/api/v1/auth/register`, {
     method: "POST",
@@ -107,6 +173,7 @@ export async function signOut() {
 
   accessToken = null;
   currentUser = null;
+  sessionRestore = Promise.resolve(null);
   notifyAuthListeners();
 }
 

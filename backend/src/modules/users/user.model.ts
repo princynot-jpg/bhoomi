@@ -21,6 +21,7 @@ export interface UserData {
   position?: string;
   state?: string;
   district?: string;
+  avatarDataUrl?: string | null;
   isActive: boolean;
   isDeleted: boolean;
   deletedAt: Date | null;
@@ -43,6 +44,7 @@ const userSchema = new Schema<UserData>(
     position: { type: String, trim: true, maxlength: 160 },
     state: { type: String, trim: true, maxlength: 100 },
     district: { type: String, trim: true, maxlength: 100 },
+    avatarDataUrl: { type: String, default: null, maxlength: 50_000 },
     isActive: { type: Boolean, default: true, required: true },
     isDeleted: { type: Boolean, default: false, required: true, index: true },
     deletedAt: { type: Date, default: null },

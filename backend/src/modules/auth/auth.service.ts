@@ -67,6 +67,7 @@ function createSessionResponse(user: UserDocument) {
       ...(user.position ? { position: user.position } : {}),
       ...(user.state ? { state: user.state } : {}),
       ...(user.district ? { district: user.district } : {}),
+      ...(user.avatarDataUrl ? { avatarDataUrl: user.avatarDataUrl } : {}),
     },
   };
 }

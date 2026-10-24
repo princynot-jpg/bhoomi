@@ -18,7 +18,8 @@ Sign-in and account creation use the backend's `POST /api/v1/auth/login` and
 `POST /api/v1/auth/register` endpoints. The short-lived access token stays in
 memory, and credentialed requests accept the HttpOnly refresh cookie. Signed-in
 users can sign out from the profile area at the bottom of the dashboard
-sidebar. The backend must allow the frontend origin in `CORS_ORIGINS`.
+sidebar. Select the profile avatar to edit the account name, position, location,
+and display photo. The backend must allow the frontend origin in `CORS_ORIGINS`.
 
 The theme picker includes Sage, Midnight, Ocean, Terracotta and Lavender
 palettes. It follows the operating-system light/dark preference initially and
